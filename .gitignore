@@ -1,0 +1,26 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+
+# Node
+node_modules/
+dist/
+
+# Angular
+frontend/.angular/
+
+# IDE
+.vs/
+.vscode/
+
+# Aspire
+.aspire/
+
+# Claude
+.claude/
+
+# Misc
+nul
+PLAN.md
