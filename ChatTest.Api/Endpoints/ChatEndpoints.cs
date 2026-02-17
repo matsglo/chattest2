@@ -1,6 +1,5 @@
 using ChatTest.Api.Models;
 using ChatTest.Api.Services;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace ChatTest.Api.Endpoints;
@@ -69,48 +68,132 @@ public static class ChatEndpoints
             string id,
             ChatRequest body,
             ChatSessionService sessions,
-            ChatClientAgent agent,
+            IChatClient chatClient,
+            McpToolService mcpService,
             HttpContext httpContext) =>
         {
             var session = sessions.Get(id);
             if (session is null)
                 return Results.NotFound();
 
-            // Persist the new user message
-            var userMsg = body.Messages.LastOrDefault(m =>
-                m.Role.Equals("user", StringComparison.OrdinalIgnoreCase));
-            var userText = userMsg?.GetText();
-            if (userText is not null)
-                sessions.AddMessage(id, ChatRole.User, userText);
-
-            // Auto-title from first user message
-            if (session.Title == "New Chat" &&
-                session.Messages.Count(m => m.Role == ChatRole.User) <= 1 &&
-                userText is not null)
+            // Collect tool approvals from all assistant messages (Pass 2)
+            var approvals = new List<ToolApprovalInfo>();
+            foreach (var msg in body.Messages
+                .Where(m => m.Role.Equals("assistant", StringComparison.OrdinalIgnoreCase)))
             {
-                session.Title = userText.Length <= 60
-                    ? userText
-                    : userText[..60] + "...";
+                approvals.AddRange(msg.GetToolApprovals());
+            }
+
+            // Only persist new user text on Pass 1 (no approvals)
+            if (approvals.Count == 0)
+            {
+                var userMsg = body.Messages.LastOrDefault(m =>
+                    m.Role.Equals("user", StringComparison.OrdinalIgnoreCase));
+                var userText = userMsg?.GetText();
+                if (userText is not null)
+                    sessions.AddMessage(id, ChatRole.User, userText);
+
+                // Auto-title from first user message
+                if (session.Title == "New Chat" &&
+                    session.Messages.Count(m => m.Role == ChatRole.User) <= 1 &&
+                    userText is not null)
+                {
+                    session.Title = userText.Length <= 60
+                        ? userText
+                        : userText[..60] + "...";
+                }
             }
 
             var writer = new AiStreamWriter(httpContext.Response);
             writer.SetHeaders();
 
+            var chatOptions = new ChatOptions
+            {
+                Tools = mcpService.Tools.ToList()
+            };
+
+            // If we have approvals from Pass 1, execute tools first
+            if (approvals.Count > 0)
+            {
+                // The assistant message with FunctionCallContent was already
+                // added to session.Messages at the end of Pass 1.
+                // Now add tool results.
+                var resultContents = new List<AIContent>();
+
+                foreach (var approval in approvals)
+                {
+                    if (approval.Approved)
+                    {
+                        var tool = mcpService.Tools
+                            .OfType<AIFunction>()
+                            .FirstOrDefault(t => t.Name == approval.ToolName);
+
+                        if (tool is not null)
+                        {
+                            try
+                            {
+                                var argsDict = approval.Input.HasValue
+                                    ? approval.Input.Value.EnumerateObject()
+                                        .ToDictionary(
+                                            p => p.Name,
+                                            p => (object?)p.Value)
+                                    : new Dictionary<string, object?>();
+
+                                var result = await tool.InvokeAsync(
+                                    new AIFunctionArguments(argsDict),
+                                    httpContext.RequestAborted);
+
+                                resultContents.Add(
+                                    new FunctionResultContent(approval.ToolCallId, result));
+                                await writer.WriteToolResultAsync(
+                                    approval.ToolCallId, result ?? "");
+                            }
+                            catch (Exception ex)
+                            {
+                                resultContents.Add(
+                                    new FunctionResultContent(
+                                        approval.ToolCallId, $"Error: {ex.Message}"));
+                                await writer.WriteToolResultAsync(
+                                    approval.ToolCallId, $"Error: {ex.Message}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        resultContents.Add(
+                            new FunctionResultContent(
+                                approval.ToolCallId,
+                                $"Tool '{approval.ToolName}' was declined by the user."));
+                        await writer.WriteToolOutputDeniedAsync(approval.ToolCallId);
+                    }
+                }
+
+                session.Messages.Add(new ChatMessage(ChatRole.Tool, resultContents));
+                session.UpdatedAt = DateTime.UtcNow;
+            }
+
+            // Stream LLM response
             var responseText = new System.Text.StringBuilder();
             var inThinking = true;
             var tagBuffer = "";
+            var functionCallMap = new Dictionary<string, FunctionCallContent>();
 
-            // Stream via Agent Framework
-            await foreach (var update in agent.RunStreamingAsync(
-                session.Messages))
+            await foreach (var update in chatClient.GetStreamingResponseAsync(
+                session.Messages, chatOptions, httpContext.RequestAborted))
             {
                 foreach (var content in update.Contents)
                 {
+                    // Collect function calls
+                    if (content is FunctionCallContent fc)
+                    {
+                        functionCallMap[fc.CallId] = fc;
+                        inThinking = true;
+                        continue;
+                    }
+
                     if (content is not TextContent textContent ||
                         string.IsNullOrEmpty(textContent.Text))
                     {
-                        // Non-text content (tool call/result) means a new generation
-                        // follows — the template will prepend <think> again
                         if (content is not TextContent)
                             inThinking = true;
                         continue;
@@ -135,7 +218,6 @@ public static class ChatEndpoints
                             }
                             else if (text.Contains('<'))
                             {
-                                // Might be a partial </think> tag — buffer from '<'
                                 var ltIdx = text.LastIndexOf('<');
                                 var before = text[..ltIdx];
                                 if (before.Length > 0)
@@ -165,7 +247,6 @@ public static class ChatEndpoints
                             }
                             else if (text.Contains('<'))
                             {
-                                // Might be a partial <think> tag — buffer from '<'
                                 var ltIdx = text.LastIndexOf('<');
                                 var before = text[..ltIdx];
                                 if (before.Length > 0)
@@ -199,10 +280,38 @@ public static class ChatEndpoints
                 }
             }
 
-            // Persist assistant response (only the non-thinking text)
-            var finalResponse = responseText.ToString().Trim();
-            if (finalResponse.Length > 0)
-                sessions.AddMessage(id, ChatRole.Assistant, finalResponse);
+            var functionCalls = functionCallMap.Values.ToList();
+
+            if (functionCalls.Count > 0)
+            {
+                // LLM requested tool calls — persist them and request approval
+                var contents = new List<AIContent>();
+                var finalText = responseText.ToString().Trim();
+                if (finalText.Length > 0)
+                    contents.Add(new TextContent(finalText));
+                contents.AddRange(functionCalls);
+
+                session.Messages.Add(new ChatMessage(ChatRole.Assistant, contents));
+                session.UpdatedAt = DateTime.UtcNow;
+
+                foreach (var fc in functionCalls)
+                {
+                    await writer.WriteToolCallAsync(
+                        fc.CallId,
+                        fc.Name,
+                        fc.Arguments ?? new Dictionary<string, object?>());
+                    await writer.WriteToolApprovalRequestAsync(fc.CallId);
+                }
+            }
+            else
+            {
+                // No tool calls — persist assistant text response
+                var finalResponse = responseText.ToString().Trim();
+                if (finalResponse.Length > 0)
+                {
+                    sessions.AddMessage(id, ChatRole.Assistant, finalResponse);
+                }
+            }
 
             await writer.WriteFinishAsync();
 

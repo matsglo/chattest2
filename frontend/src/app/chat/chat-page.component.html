@@ -15,11 +15,13 @@
       [messages]="chat().messages"
       [status]="chat().status"
       [error]="chat().error"
+      (toolApproval)="onToolApproval($event)"
+      (toolAlwaysAllow)="onToolAlwaysAllow($event)"
     />
 
     <app-chat-input
       (send)="onSend($event)"
-      [disabled]="chat().status === 'streaming' || chat().status === 'submitted'"
+      [disabled]="chat().status === 'streaming' || chat().status === 'submitted' || hasPendingApprovals()"
     />
   </div>
 </div>

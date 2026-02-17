@@ -15,7 +15,9 @@ namespace ChatTest.Api.Services;
 ///   reasoning-end           End of a reasoning part
 ///   tool-input-start        Start of a tool call
 ///   tool-input-available    Tool call input is complete
+///   tool-approval-request   Request user approval for a tool call
 ///   tool-output-available   Tool call result
+///   tool-output-denied      Tool call was declined by user
 /// </summary>
 public sealed class AiStreamWriter(HttpResponse response)
 {
@@ -76,14 +78,26 @@ public sealed class AiStreamWriter(HttpResponse response)
         {
             type = "tool-input-start",
             toolCallId,
-            toolName
+            toolName,
+            dynamic = true
         });
         await WriteSseEventAsync(new
         {
             type = "tool-input-available",
             toolCallId,
             toolName,
-            input = args
+            input = args,
+            dynamic = true
+        });
+    }
+
+    public async Task WriteToolApprovalRequestAsync(string toolCallId)
+    {
+        await WriteSseEventAsync(new
+        {
+            type = "tool-approval-request",
+            toolCallId,
+            approvalId = Guid.NewGuid().ToString("N")[..8]
         });
     }
 
@@ -94,6 +108,15 @@ public sealed class AiStreamWriter(HttpResponse response)
             type = "tool-output-available",
             toolCallId,
             output = result
+        });
+    }
+
+    public async Task WriteToolOutputDeniedAsync(string toolCallId)
+    {
+        await WriteSseEventAsync(new
+        {
+            type = "tool-output-denied",
+            toolCallId
         });
     }
 

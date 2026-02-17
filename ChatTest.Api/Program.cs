@@ -11,7 +11,7 @@ builder.AddServiceDefaults();
 // ── Application services ─────────────────────────────────────────────
 builder.Services.AddSingleton<ChatSessionService>();
 
-// ── Microsoft Agent Framework ────────────────────────────────────────
+// ── AI Chat Client ───────────────────────────────────────────────────
 var aiConfig = builder.Configuration.GetSection("AI");
 var modelId = aiConfig["ModelId"] ?? "gpt-4.1";
 var apiKey = aiConfig["ApiKey"] ?? "lm-studio";
@@ -26,16 +26,12 @@ IChatClient chatClient = openAiClient
     .GetChatClient(modelId)
     .AsIChatClient();
 
+builder.Services.AddSingleton(chatClient);
+
 // ── MCP Tools ────────────────────────────────────────────────────────
 var mcpService = new McpToolService();
 await mcpService.InitializeAsync(builder.Configuration, LoggerFactory.Create(b => b.AddConsole()));
 builder.Services.AddSingleton(mcpService);
-
-var agent = chatClient.AsAIAgent(
-    instructions: "You are a helpful assistant.",
-    tools: [.. mcpService.Tools]);
-
-builder.Services.AddSingleton(agent);
 
 // ── CORS (needed when not using Angular proxy) ───────────────────────
 builder.Services.AddCors(options =>

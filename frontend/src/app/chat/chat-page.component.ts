@@ -1,6 +1,10 @@
 import { Component, signal } from '@angular/core';
 import { Chat } from '@ai-sdk/angular';
-import { DefaultChatTransport, UIMessage } from 'ai';
+import {
+  DefaultChatTransport,
+  UIMessage,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
+} from 'ai';
 import { SessionSidebarComponent, SessionSummary } from './session-sidebar.component';
 import { MessageListComponent } from './message-list.component';
 import { ChatInputComponent } from './chat-input.component';
@@ -14,6 +18,7 @@ import { ChatInputComponent } from './chat-input.component';
 export class ChatPageComponent {
   sessions = signal<SessionSummary[]>([]);
   activeSessionId = signal<string | null>(null);
+  alwaysAllowedTools = signal(new Set<string>());
 
   chat = signal(this.createChat('/api/chat/sessions/_none_/messages'));
 
@@ -25,9 +30,36 @@ export class ChatPageComponent {
     return new Chat({
       transport: new DefaultChatTransport({ api }),
       messages,
+      sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
       onError: (err) => console.error('Chat error:', err),
-      onFinish: () => this.loadSessions()
+      onFinish: () => {
+        this.autoApproveAlwaysAllowedTools();
+        this.loadSessions();
+      }
     });
+  }
+
+  private autoApproveAlwaysAllowedTools() {
+    const alwaysAllowed = this.alwaysAllowedTools();
+    if (alwaysAllowed.size === 0) return;
+
+    const chat = this.chat();
+    const messages = chat.messages;
+    const lastMsg = messages.filter(m => m.role === 'assistant').at(-1);
+    if (!lastMsg) return;
+
+    for (const part of lastMsg.parts) {
+      if (
+        part.type === 'dynamic-tool' &&
+        (part as any).state === 'approval-requested' &&
+        alwaysAllowed.has((part as any).toolName)
+      ) {
+        chat.addToolApprovalResponse({
+          id: (part as any).approval.id,
+          approved: true,
+        });
+      }
+    }
   }
 
   async loadSessions() {
@@ -71,5 +103,27 @@ export class ChatPageComponent {
       return;
     }
     this.chat().sendMessage({ text });
+  }
+
+  onToolApproval(event: { id: string; approved: boolean }) {
+    this.chat().addToolApprovalResponse(event);
+  }
+
+  onToolAlwaysAllow(event: { id: string; toolName: string }) {
+    this.alwaysAllowedTools.update(set => {
+      const next = new Set(set);
+      next.add(event.toolName);
+      return next;
+    });
+    this.chat().addToolApprovalResponse({ id: event.id, approved: true });
+  }
+
+  hasPendingApprovals(): boolean {
+    return this.chat().messages.some(msg =>
+      msg.parts.some(p =>
+        p.type === 'dynamic-tool' &&
+        (p as any).state === 'approval-requested'
+      )
+    );
   }
 }

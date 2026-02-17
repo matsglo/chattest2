@@ -1,4 +1,4 @@
-import { Component, Input, ElementRef, ViewChild, AfterViewChecked } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ElementRef, ViewChild, AfterViewChecked } from '@angular/core';
 import { UIMessage } from 'ai';
 import { MessageBubbleComponent } from './message-bubble.component';
 
@@ -11,7 +11,11 @@ import { MessageBubbleComponent } from './message-bubble.component';
       <div class="max-w-3xl mx-auto px-4 py-6">
         @for (msg of messages; track msg.id) {
           <div class="mt-4">
-            <app-message-bubble [message]="msg" />
+            <app-message-bubble
+              [message]="msg"
+              (toolApproval)="toolApproval.emit($event)"
+              (toolAlwaysAllow)="toolAlwaysAllow.emit($event)"
+            />
           </div>
         }
         @if (status === 'submitted') {
@@ -48,6 +52,8 @@ export class MessageListComponent implements AfterViewChecked {
   @Input() messages: UIMessage[] = [];
   @Input() status: string = 'ready';
   @Input() error: Error | undefined;
+  @Output() toolApproval = new EventEmitter<{ id: string; approved: boolean }>();
+  @Output() toolAlwaysAllow = new EventEmitter<{ id: string; toolName: string }>();
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
 
   private shouldScroll = true;
