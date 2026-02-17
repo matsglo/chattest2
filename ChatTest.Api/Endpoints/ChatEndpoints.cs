@@ -96,7 +96,7 @@ public static class ChatEndpoints
             var writer = new AiStreamWriter(httpContext.Response);
             writer.SetHeaders();
 
-            var fullResponse = new System.Text.StringBuilder();
+            var responseText = new System.Text.StringBuilder();
             var inThinking = true;
             var tagBuffer = "";
 
@@ -109,8 +109,6 @@ public static class ChatEndpoints
                     if (content is not TextContent textContent ||
                         string.IsNullOrEmpty(textContent.Text))
                         continue;
-
-                    fullResponse.Append(textContent.Text);
 
                     // Parse <think> tags from the stream
                     var text = tagBuffer + textContent.Text;
@@ -152,7 +150,10 @@ public static class ChatEndpoints
                             {
                                 var before = text[..startIdx];
                                 if (before.Length > 0)
+                                {
                                     await writer.WriteTextDeltaAsync(before);
+                                    responseText.Append(before);
+                                }
                                 inThinking = true;
                                 text = text[(startIdx + "<think>".Length)..];
                             }
@@ -162,13 +163,17 @@ public static class ChatEndpoints
                                 var ltIdx = text.LastIndexOf('<');
                                 var before = text[..ltIdx];
                                 if (before.Length > 0)
+                                {
                                     await writer.WriteTextDeltaAsync(before);
+                                    responseText.Append(before);
+                                }
                                 tagBuffer = text[ltIdx..];
                                 text = "";
                             }
                             else
                             {
                                 await writer.WriteTextDeltaAsync(text);
+                                responseText.Append(text);
                                 text = "";
                             }
                         }
@@ -182,17 +187,16 @@ public static class ChatEndpoints
                 if (inThinking)
                     await writer.WriteReasoningDeltaAsync(tagBuffer);
                 else
+                {
                     await writer.WriteTextDeltaAsync(tagBuffer);
+                    responseText.Append(tagBuffer);
+                }
             }
 
-            // Persist assistant response (strip think tags for storage)
-            if (fullResponse.Length > 0)
-            {
-                var cleanResponse = System.Text.RegularExpressions.Regex.Replace(
-                    fullResponse.ToString(), @"<think>[\s\S]*?</think>", "").Trim();
-                if (cleanResponse.Length > 0)
-                    sessions.AddMessage(id, ChatRole.Assistant, cleanResponse);
-            }
+            // Persist assistant response (only the non-thinking text)
+            var finalResponse = responseText.ToString().Trim();
+            if (finalResponse.Length > 0)
+                sessions.AddMessage(id, ChatRole.Assistant, finalResponse);
 
             await writer.WriteFinishAsync();
 

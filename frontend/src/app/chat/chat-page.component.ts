@@ -15,7 +15,7 @@ export class ChatPageComponent {
   sessions = signal<SessionSummary[]>([]);
   activeSessionId = signal<string | null>(null);
 
-  chat = this.createChat('/api/chat/sessions/_none_/messages');
+  chat = signal(this.createChat('/api/chat/sessions/_none_/messages'));
 
   constructor() {
     this.loadSessions();
@@ -46,7 +46,7 @@ export class ChatPageComponent {
     this.activeSessionId.set(id);
     const res = await fetch(`/api/chat/sessions/${id}/messages`);
     const messages: UIMessage[] = await res.json();
-    this.chat = this.createChat(`/api/chat/sessions/${id}/messages`, messages);
+    this.chat.set(this.createChat(`/api/chat/sessions/${id}/messages`, messages));
   }
 
   async deleteSession(id: string) {
@@ -58,7 +58,7 @@ export class ChatPageComponent {
         this.selectSession(remaining[0].id);
       } else {
         this.activeSessionId.set(null);
-        this.chat = this.createChat('/api/chat/sessions/_none_/messages');
+        this.chat.set(this.createChat('/api/chat/sessions/_none_/messages'));
       }
     }
   }
@@ -66,10 +66,10 @@ export class ChatPageComponent {
   onSend(text: string) {
     if (!this.activeSessionId()) {
       this.createSession().then(() =>
-        this.chat.sendMessage({ text })
+        this.chat().sendMessage({ text })
       );
       return;
     }
-    this.chat.sendMessage({ text });
+    this.chat().sendMessage({ text });
   }
 }
