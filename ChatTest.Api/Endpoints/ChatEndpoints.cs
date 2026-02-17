@@ -108,7 +108,13 @@ public static class ChatEndpoints
                 {
                     if (content is not TextContent textContent ||
                         string.IsNullOrEmpty(textContent.Text))
+                    {
+                        // Non-text content (tool call/result) means a new generation
+                        // follows — the template will prepend <think> again
+                        if (content is not TextContent)
+                            inThinking = true;
                         continue;
+                    }
 
                     // Parse <think> tags from the stream
                     var text = tagBuffer + textContent.Text;
