@@ -50,16 +50,71 @@ public static class ChatEndpoints
             if (session is null)
                 return Results.NotFound();
 
-            var messages = session.Messages
-                .Where(m => m.Role != ChatRole.System)
-                .Select(m => new
-                {
-                    id = Guid.NewGuid().ToString("N")[..8],
-                    role = m.Role == ChatRole.User ? "user" : "assistant",
-                    parts = new[] { new { type = "text", text = m.Text } }
-                });
+            // Build a lookup of tool results from Tool messages so we can
+            // merge them into the preceding assistant message's tool parts.
+            var toolResults = new Dictionary<string, object?>();
+            foreach (var msg in session.Messages.Where(m => m.Role == ChatRole.Tool))
+            {
+                foreach (var c in msg.Contents.OfType<FunctionResultContent>())
+                    toolResults[c.CallId] = c.Result;
+            }
 
-            return Results.Ok(messages);
+            var uiMessages = new List<(string id, string role, List<object> parts)>();
+
+            foreach (var msg in session.Messages)
+            {
+                if (msg.Role == ChatRole.System || msg.Role == ChatRole.Tool)
+                    continue;
+
+                var parts = new List<object>();
+
+                foreach (var content in msg.Contents)
+                {
+                    if (content is TextContent tc && !string.IsNullOrEmpty(tc.Text))
+                    {
+                        parts.Add(new { type = "text", text = tc.Text });
+                    }
+                    else if (content is FunctionCallContent fc)
+                    {
+                        var hasResult = toolResults.TryGetValue(fc.CallId, out var result);
+                        parts.Add(new
+                        {
+                            type = "dynamic-tool",
+                            toolCallId = fc.CallId,
+                            toolName = fc.Name,
+                            state = hasResult ? "output-available" : "approval-requested",
+                            input = fc.Arguments,
+                            output = hasResult ? result : null
+                        });
+                    }
+                }
+
+                // If the message only had plain text (no Contents list),
+                // fall back to m.Text
+                if (parts.Count == 0 && !string.IsNullOrEmpty(msg.Text))
+                    parts.Add(new { type = "text", text = msg.Text });
+
+                var role = msg.Role == ChatRole.User ? "user" : "assistant";
+
+                // Merge consecutive assistant messages into one UI message
+                // so that tool calls and the follow-up text appear in the same bubble.
+                if (role == "assistant" && uiMessages.Count > 0 &&
+                    uiMessages[^1].role == "assistant")
+                {
+                    uiMessages[^1].parts.AddRange(parts);
+                }
+                else
+                {
+                    uiMessages.Add((Guid.NewGuid().ToString("N")[..8], role, parts));
+                }
+            }
+
+            return Results.Ok(uiMessages.Select(m => new
+            {
+                id = m.id,
+                role = m.role,
+                parts = m.parts
+            }));
         });
 
         // ── Streaming chat completion ─────────────────────────────────
