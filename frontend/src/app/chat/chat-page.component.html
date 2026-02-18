@@ -17,6 +17,7 @@
       [error]="chat().error"
       (toolApproval)="onToolApproval($event)"
       (toolAlwaysAllow)="onToolAlwaysAllow($event)"
+      (suggestionClicked)="onSend($event)"
     />
 
     <app-chat-input

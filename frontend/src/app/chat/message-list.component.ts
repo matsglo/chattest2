@@ -40,9 +40,20 @@ import { MessageBubbleComponent } from './message-bubble.component';
           </div>
         }
         @if (messages.length === 0 && !error) {
-          <div class="text-center text-gray-400 dark:text-gray-500 mt-32 space-y-2">
+          <div class="text-center text-gray-400 dark:text-gray-500 mt-32 space-y-4">
             <div class="text-4xl">💬</div>
             <div>Send a message to start the conversation.</div>
+            <div class="flex flex-wrap justify-center gap-2 mt-4">
+              @for (s of suggestions; track s) {
+                <button
+                  (click)="suggestionClicked.emit(s)"
+                  class="px-3 py-1.5 text-sm rounded-full border border-gray-300 dark:border-gray-600
+                         text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800
+                         hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  {{ s }}
+                </button>
+              }
+            </div>
           </div>
         }
       </div>
@@ -55,6 +66,13 @@ export class MessageListComponent implements AfterViewChecked {
   @Input() error: Error | undefined;
   @Output() toolApproval = new EventEmitter<{ id: string; approved: boolean }>();
   @Output() toolAlwaysAllow = new EventEmitter<{ id: string; toolName: string }>();
+  @Output() suggestionClicked = new EventEmitter<string>();
+
+  suggestions = [
+    'What time is it in Norway?',
+    'Create a funny face in SVG',
+    'I need a painting',
+  ];
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
 
   private shouldScroll = true;
