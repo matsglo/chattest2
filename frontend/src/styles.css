@@ -16,3 +16,12 @@
     background-color: var(--color-gray-50);
   }
 }
+
+/* Images in chat messages */
+.prose img {
+  max-width: 100%;
+  height: auto;
+  max-height: 400px;
+  border-radius: 0.5rem;
+  margin-inline: auto;
+}

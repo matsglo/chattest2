@@ -51,4 +51,30 @@ app.UseCors();
 app.MapDefaultEndpoints();             // Aspire health checks
 app.MapChatEndpoints();
 
+// ── Serve images from repo root ─────────────────────────────────────
+app.MapGet("/api/images/{filename}", (string filename) =>
+{
+    // Only allow specific safe filenames
+    if (filename != Path.GetFileName(filename))
+        return Results.BadRequest();
+
+    var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+    var filePath = Path.Combine(repoRoot, filename);
+
+    if (!File.Exists(filePath))
+        return Results.NotFound();
+
+    var contentType = Path.GetExtension(filePath).ToLowerInvariant() switch
+    {
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".gif" => "image/gif",
+        ".svg" => "image/svg+xml",
+        ".webp" => "image/webp",
+        _ => "application/octet-stream"
+    };
+
+    return Results.File(filePath, contentType);
+});
+
 app.Run();
