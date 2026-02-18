@@ -120,6 +120,13 @@ public sealed class AiStreamWriter(HttpResponse response)
         });
     }
 
+    public async Task WriteMessageMetadataAsync(object metadata)
+    {
+        await EndTextPartAsync();
+        await EndReasoningPartAsync();
+        await WriteSseEventAsync(new { type = "message-metadata", messageMetadata = metadata });
+    }
+
     public async Task WriteFinishAsync()
     {
         await EndTextPartAsync();

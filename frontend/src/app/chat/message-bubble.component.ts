@@ -160,6 +160,14 @@ marked.setOptions({ breaks: true, gfm: true, renderer });
           }
         }
       </div>
+      @if (showUsage && message.role === 'assistant' && usage) {
+        <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-1 ml-1">
+          ↑{{ usage.inputTokens }} ↓{{ usage.outputTokens }}
+          @if (usage.cachedTokens) {
+            ⚡{{ usage.cachedTokens }} cached
+          }
+        </div>
+      }
     </div>
   `
 })
@@ -171,6 +179,8 @@ export class MessageBubbleComponent implements DoCheck {
   renderedHtml: SafeHtml = '';
   textContent = '';
   reasoningText = '';
+  showUsage = localStorage.getItem('show-token-usage') === 'true';
+  usage: { inputTokens: number; outputTokens: number; cachedTokens: number; totalTokens: number } | null = null;
 
   private lastText = '';
   private lastReasoning = '';
@@ -188,6 +198,9 @@ export class MessageBubbleComponent implements DoCheck {
       .filter((p): p is Extract<typeof p, { type: 'reasoning' }> => p.type === 'reasoning')
       .map(p => p.text)
       .join('');
+
+    this.showUsage = localStorage.getItem('show-token-usage') === 'true';
+    this.usage = (this.message as any).metadata?.usage ?? null;
 
     const changed = text !== this.lastText || reasoning !== this.lastReasoning || this.isStreaming !== this.lastIsStreaming;
     if (!changed) return;

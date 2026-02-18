@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, ElementRef, ViewChild, AfterViewChecked } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ElementRef, ViewChild, AfterViewChecked, DoCheck } from '@angular/core';
 import { UIMessage } from 'ai';
 import { MessageBubbleComponent } from './message-bubble.component';
 
@@ -9,6 +9,14 @@ import { MessageBubbleComponent } from './message-bubble.component';
   template: `
     <div #scrollContainer class="h-full overflow-y-auto">
       <div class="max-w-3xl mx-auto px-4 py-6">
+        @if (showUsage && messages.length > 0 && sessionTotals.totalTokens > 0) {
+          <div class="text-[11px] text-gray-400 dark:text-gray-500 text-center py-1 border-b border-gray-200 dark:border-gray-700 mb-2">
+            Session: ↑{{ sessionTotals.inputTokens }} input · ↓{{ sessionTotals.outputTokens }} output
+            @if (sessionTotals.cachedTokens) {
+               · ⚡{{ sessionTotals.cachedTokens }} cached
+            }
+          </div>
+        }
         @for (msg of messages; track msg.id; let last = $last) {
           <div class="mt-4">
             <app-message-bubble
@@ -60,13 +68,16 @@ import { MessageBubbleComponent } from './message-bubble.component';
     </div>
   `
 })
-export class MessageListComponent implements AfterViewChecked {
+export class MessageListComponent implements AfterViewChecked, DoCheck {
   @Input() messages: UIMessage[] = [];
   @Input() status: string = 'ready';
   @Input() error: Error | undefined;
   @Output() toolApproval = new EventEmitter<{ id: string; approved: boolean }>();
   @Output() toolAlwaysAllow = new EventEmitter<{ id: string; toolName: string }>();
   @Output() suggestionClicked = new EventEmitter<string>();
+
+  showUsage = localStorage.getItem('show-token-usage') === 'true';
+  sessionTotals = { inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalTokens: 0 };
 
   suggestions = [
     'What time is it in Norway?',
@@ -76,6 +87,23 @@ export class MessageListComponent implements AfterViewChecked {
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
 
   private shouldScroll = true;
+
+  ngDoCheck() {
+    this.showUsage = localStorage.getItem('show-token-usage') === 'true';
+    if (this.showUsage) {
+      const totals = { inputTokens: 0, outputTokens: 0, cachedTokens: 0, totalTokens: 0 };
+      for (const msg of this.messages) {
+        const usage = (msg as any).metadata?.usage;
+        if (usage) {
+          totals.inputTokens += usage.inputTokens ?? 0;
+          totals.outputTokens += usage.outputTokens ?? 0;
+          totals.cachedTokens += usage.cachedTokens ?? 0;
+          totals.totalTokens += usage.totalTokens ?? 0;
+        }
+      }
+      this.sessionTotals = totals;
+    }
+  }
 
   ngAfterViewChecked() {
     if (this.shouldScroll) {

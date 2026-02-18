@@ -1,4 +1,5 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 export interface SessionSummary {
   id: string;
@@ -8,6 +9,7 @@ export interface SessionSummary {
 @Component({
   selector: 'app-session-sidebar',
   standalone: true,
+  imports: [RouterLink],
   template: `
     <aside class="w-64 bg-gray-900 text-white flex flex-col h-full">
       <div class="p-4 flex gap-2">
@@ -24,6 +26,13 @@ export interface SessionSummary {
           [title]="isDark ? 'Switch to light mode' : 'Switch to dark mode'">
           {{ isDark ? '☀️' : '🌙' }}
         </button>
+        <a
+          routerLink="/settings"
+          class="rounded-lg border border-gray-600 px-2.5 py-2 text-sm
+                 hover:bg-gray-800 transition"
+          title="Settings">
+          ⚙
+        </a>
       </div>
       <nav class="flex-1 overflow-y-auto px-2 space-y-1">
         @for (s of sessions; track s.id) {

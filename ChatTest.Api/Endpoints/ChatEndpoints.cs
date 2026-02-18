@@ -4,8 +4,11 @@ using Microsoft.Extensions.AI;
 
 namespace ChatTest.Api.Endpoints;
 
+public record TokenUsage(long InputTokens, long OutputTokens, int CachedTokens, long TotalTokens);
+
 public static class ChatEndpoints
 {
+
     public static void MapChatEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/chat");
@@ -59,10 +62,12 @@ public static class ChatEndpoints
                     toolResults[c.CallId] = c.Result;
             }
 
-            var uiMessages = new List<(string id, string role, List<object> parts)>();
+            var uiMessages = new List<(string id, string role, List<object> parts,
+                long inputTokens, long outputTokens, int cachedTokens, long totalTokens)>();
 
-            foreach (var msg in session.Messages)
+            for (var i = 0; i < session.Messages.Count; i++)
             {
+                var msg = session.Messages[i];
                 if (msg.Role == ChatRole.System || msg.Role == ChatRole.Tool)
                     continue;
 
@@ -77,15 +82,31 @@ public static class ChatEndpoints
                     else if (content is FunctionCallContent fc)
                     {
                         var hasResult = toolResults.TryGetValue(fc.CallId, out var result);
-                        parts.Add(new
+                        if (hasResult)
                         {
-                            type = "dynamic-tool",
-                            toolCallId = fc.CallId,
-                            toolName = fc.Name,
-                            state = hasResult ? "output-available" : "approval-requested",
-                            input = fc.Arguments,
-                            output = hasResult ? result : null
-                        });
+                            parts.Add(new
+                            {
+                                type = "dynamic-tool",
+                                toolCallId = fc.CallId,
+                                toolName = fc.Name,
+                                state = "output-available",
+                                input = fc.Arguments,
+                                output = result
+                            });
+                        }
+                        else
+                        {
+                            parts.Add(new
+                            {
+                                type = "dynamic-tool",
+                                toolCallId = fc.CallId,
+                                toolName = fc.Name,
+                                state = "approval-requested",
+                                input = fc.Arguments,
+                                output = (object?)null,
+                                approval = new { id = Guid.NewGuid().ToString("N")[..8] }
+                            });
+                        }
                     }
                 }
 
@@ -96,24 +117,53 @@ public static class ChatEndpoints
 
                 var role = msg.Role == ChatRole.User ? "user" : "assistant";
 
+                // Look up persisted usage for this message index
+                session.MessageUsage.TryGetValue(i, out var msgUsage);
+                long inp = msgUsage?.InputTokens ?? 0;
+                long outp = msgUsage?.OutputTokens ?? 0;
+                int cached = msgUsage?.CachedTokens ?? 0;
+                long total = msgUsage?.TotalTokens ?? 0;
+
                 // Merge consecutive assistant messages into one UI message
                 // so that tool calls and the follow-up text appear in the same bubble.
                 if (role == "assistant" && uiMessages.Count > 0 &&
                     uiMessages[^1].role == "assistant")
                 {
-                    uiMessages[^1].parts.AddRange(parts);
+                    var last = uiMessages[^1];
+                    last.parts.AddRange(parts);
+                    uiMessages[^1] = (last.id, last.role, last.parts,
+                        last.inputTokens + inp, last.outputTokens + outp,
+                        last.cachedTokens + cached, last.totalTokens + total);
                 }
                 else
                 {
-                    uiMessages.Add((Guid.NewGuid().ToString("N")[..8], role, parts));
+                    uiMessages.Add((Guid.NewGuid().ToString("N")[..8], role, parts,
+                        inp, outp, cached, total));
                 }
             }
 
-            return Results.Ok(uiMessages.Select(m => new
+            return Results.Ok(uiMessages.Select(m =>
             {
-                id = m.id,
-                role = m.role,
-                parts = m.parts
+                object? metadata = m.totalTokens > 0
+                    ? new
+                    {
+                        usage = new
+                        {
+                            inputTokens = m.inputTokens,
+                            outputTokens = m.outputTokens,
+                            cachedTokens = m.cachedTokens,
+                            totalTokens = m.totalTokens
+                        }
+                    }
+                    : null;
+
+                return new
+                {
+                    id = m.id,
+                    role = m.role,
+                    parts = m.parts,
+                    metadata
+                };
             }));
         });
 
@@ -233,6 +283,7 @@ public static class ChatEndpoints
             var inThinking = thinkingEnabled;
             var tagBuffer = "";
             var functionCallMap = new Dictionary<string, FunctionCallContent>();
+            UsageContent? usageContent = null;
 
             await foreach (var update in chatClient.GetStreamingResponseAsync(
                 session.Messages, chatOptions, httpContext.RequestAborted))
@@ -244,6 +295,12 @@ public static class ChatEndpoints
                     {
                         functionCallMap[fc.CallId] = fc;
                         if (thinkingEnabled) inThinking = true;
+                        continue;
+                    }
+
+                    if (content is UsageContent uc)
+                    {
+                        usageContent = uc;
                         continue;
                     }
 
@@ -375,6 +432,34 @@ public static class ChatEndpoints
                 {
                     sessions.AddMessage(id, ChatRole.Assistant, finalResponse);
                 }
+            }
+
+            if (usageContent?.Details is { } usage)
+            {
+                var cachedTokens = 0;
+                usage.AdditionalCounts?.TryGetValue("CachedInputTokenCount", out cachedTokens);
+                var tokenUsage = new TokenUsage(
+                    usage.InputTokenCount ?? 0,
+                    usage.OutputTokenCount ?? 0,
+                    cachedTokens,
+                    usage.TotalTokenCount ?? 0);
+
+                // Persist usage for the last assistant message
+                var lastAssistantIdx = session.Messages.FindLastIndex(
+                    m => m.Role == ChatRole.Assistant);
+                if (lastAssistantIdx >= 0)
+                    session.MessageUsage[lastAssistantIdx] = tokenUsage;
+
+                await writer.WriteMessageMetadataAsync(new
+                {
+                    usage = new
+                    {
+                        inputTokens = tokenUsage.InputTokens,
+                        outputTokens = tokenUsage.OutputTokens,
+                        cachedTokens = tokenUsage.CachedTokens,
+                        totalTokens = tokenUsage.TotalTokens
+                    }
+                });
             }
 
             await writer.WriteFinishAsync();

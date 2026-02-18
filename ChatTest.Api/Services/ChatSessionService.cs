@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using ChatTest.Api.Endpoints;
 using Microsoft.Extensions.AI;
 
 namespace ChatTest.Api.Services;
@@ -11,6 +12,11 @@ public sealed class ChatSession
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public List<ChatMessage> Messages { get; } = [];
+
+    /// <summary>
+    /// Token usage data keyed by message index in the Messages list.
+    /// </summary>
+    public Dictionary<int, TokenUsage> MessageUsage { get; } = new();
 }
 
 public sealed class ChatSessionService
