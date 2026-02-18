@@ -12,28 +12,28 @@ renderer.code = function (token: Tokens.Code) {
   if (token.lang === 'svg' || (!token.lang && token.text.trimStart().startsWith('<svg'))) {
     if (_svgStreaming) {
       return `
-        <div class="svg-preview my-3 rounded-lg border border-gray-200 overflow-hidden">
-          <div class="flex items-center gap-2 px-3 py-6 justify-center bg-white text-sm text-gray-400">
-            <span class="inline-block w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin"></span>
+        <div class="svg-preview my-3 rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
+          <div class="flex items-center gap-2 px-3 py-6 justify-center bg-white dark:bg-gray-800 text-sm text-gray-400">
+            <span class="inline-block w-4 h-4 border-2 border-gray-300 dark:border-gray-500 border-t-transparent rounded-full animate-spin"></span>
             Generating SVG...
           </div>
         </div>`;
     }
     const id = 'svg-' + Math.random().toString(36).slice(2, 9);
     return `
-      <div class="svg-preview my-3 rounded-lg border border-gray-200 overflow-hidden">
-        <div class="flex items-center justify-between px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs text-gray-500">
+      <div class="svg-preview my-3 rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
+        <div class="flex items-center justify-between px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400">
           <span>SVG Preview</span>
           <button onclick="
             var details = document.getElementById('${id}');
             details.open = !details.open;
             this.textContent = details.open ? 'Hide code' : 'View code';
-          " class="hover:text-gray-700 transition-colors cursor-pointer">View code</button>
+          " class="hover:text-gray-700 dark:hover:text-gray-300 transition-colors cursor-pointer">View code</button>
         </div>
-        <div class="p-4 flex justify-center bg-white svg-container">${token.text}</div>
-        <details id="${id}" class="border-t border-gray-200">
+        <div class="p-4 flex justify-center bg-white dark:bg-gray-900 svg-container">${token.text}</div>
+        <details id="${id}" class="border-t border-gray-200 dark:border-gray-600">
           <summary class="hidden"></summary>
-          <pre class="px-3 py-2 overflow-x-auto text-xs text-gray-600 bg-gray-50 m-0"><code>${token.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+          <pre class="px-3 py-2 overflow-x-auto text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 m-0"><code>${token.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
         </details>
       </div>`;
   }
@@ -51,22 +51,22 @@ marked.setOptions({ breaks: true, gfm: true, renderer });
       : 'flex justify-start'">
       <div [class]="message.role === 'user'
         ? 'bg-blue-600 text-white rounded-2xl rounded-br-md px-4 py-2 max-w-[80%]'
-        : 'bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-2 max-w-[80%] shadow-sm'">
+        : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl rounded-bl-md px-4 py-2 max-w-[80%] shadow-sm'">
         @if (message.role === 'user') {
           <div class="whitespace-pre-wrap text-sm">{{ textContent }}</div>
         } @else {
           @if (reasoningText) {
             <details class="mb-2 text-xs text-gray-400">
-              <summary class="cursor-pointer select-none hover:text-gray-600 transition-colors">
+              <summary class="cursor-pointer select-none hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
                 Thinking...
               </summary>
-              <div class="mt-1 pl-3 border-l-2 border-gray-200 text-gray-500 whitespace-pre-wrap">{{ reasoningText }}</div>
+              <div class="mt-1 pl-3 border-l-2 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 whitespace-pre-wrap">{{ reasoningText }}</div>
             </details>
           }
-          <div class="prose prose-sm max-w-none" [innerHTML]="renderedHtml"></div>
+          <div class="prose prose-sm dark:prose-invert max-w-none" [innerHTML]="renderedHtml"></div>
           @for (part of message.parts; track $index) {
             @if (part.type === 'dynamic-tool') {
-              <div class="my-2 rounded-lg border border-gray-200 bg-gray-50 text-xs">
+              <div class="my-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs">
                 <!-- Tool header -->
                 <div class="flex items-center gap-2 px-3 py-2">
                   @switch ($any(part).state) {
@@ -92,7 +92,7 @@ marked.setOptions({ breaks: true, gfm: true, renderer });
                       <span class="inline-block w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></span>
                     }
                   }
-                  <span class="font-medium text-gray-700">{{ $any(part).toolName }}</span>
+                  <span class="font-medium text-gray-700 dark:text-gray-300">{{ $any(part).toolName }}</span>
                   @switch ($any(part).state) {
                     @case ('approval-requested') {
                       <span class="text-amber-600 ml-auto">Awaiting approval</span>
@@ -117,17 +117,17 @@ marked.setOptions({ breaks: true, gfm: true, renderer });
 
                 <!-- Collapsible arguments -->
                 @if ($any(part).input) {
-                  <details class="border-t border-gray-200">
-                    <summary class="px-3 py-1.5 cursor-pointer select-none text-gray-500 hover:text-gray-700 transition-colors">
+                  <details class="border-t border-gray-200 dark:border-gray-600">
+                    <summary class="px-3 py-1.5 cursor-pointer select-none text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
                       Arguments
                     </summary>
-                    <pre class="px-3 py-2 overflow-x-auto text-gray-600 bg-white border-t border-gray-100">{{ formatJson($any(part).input) }}</pre>
+                    <pre class="px-3 py-2 overflow-x-auto text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-600">{{ formatJson($any(part).input) }}</pre>
                   </details>
                 }
 
                 <!-- Approval buttons -->
                 @if ($any(part).state === 'approval-requested') {
-                  <div class="flex items-center gap-2 px-3 py-2 border-t border-gray-200">
+                  <div class="flex items-center gap-2 px-3 py-2 border-t border-gray-200 dark:border-gray-600">
                     <button
                       (click)="toolApproval.emit({ id: $any(part).approval.id, approved: true })"
                       class="px-3 py-1 rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition-colors">
@@ -148,11 +148,11 @@ marked.setOptions({ breaks: true, gfm: true, renderer });
 
                 <!-- Tool output -->
                 @if ($any(part).state === 'output-available' && $any(part).output) {
-                  <details class="border-t border-gray-200">
-                    <summary class="px-3 py-1.5 cursor-pointer select-none text-gray-500 hover:text-gray-700 transition-colors">
+                  <details class="border-t border-gray-200 dark:border-gray-600">
+                    <summary class="px-3 py-1.5 cursor-pointer select-none text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
                       Output
                     </summary>
-                    <pre class="px-3 py-2 overflow-x-auto text-gray-600 bg-white border-t border-gray-100 max-h-48 overflow-y-auto">{{ formatJson($any(part).output) }}</pre>
+                    <pre class="px-3 py-2 overflow-x-auto text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-600 max-h-48 overflow-y-auto">{{ formatJson($any(part).output) }}</pre>
                   </details>
                 }
               </div>

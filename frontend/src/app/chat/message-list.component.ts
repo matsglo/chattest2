@@ -21,7 +21,7 @@ import { MessageBubbleComponent } from './message-bubble.component';
         }
         @if (status === 'submitted') {
           <div class="flex justify-start">
-            <div class="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-2 shadow-sm">
+            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl rounded-bl-md px-4 py-2 shadow-sm">
               <div class="flex items-center gap-1.5 text-sm text-gray-400">
                 <span class="flex gap-1">
                   <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
@@ -34,13 +34,13 @@ import { MessageBubbleComponent } from './message-bubble.component';
         }
         @if (error) {
           <div class="flex justify-center">
-            <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2 text-sm max-w-[80%]">
+            <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-xl px-4 py-2 text-sm max-w-[80%]">
               {{ error.message || 'An error occurred. Please try again.' }}
             </div>
           </div>
         }
         @if (messages.length === 0 && !error) {
-          <div class="text-center text-gray-400 mt-32 space-y-2">
+          <div class="text-center text-gray-400 dark:text-gray-500 mt-32 space-y-2">
             <div class="text-4xl">💬</div>
             <div>Send a message to start the conversation.</div>
           </div>

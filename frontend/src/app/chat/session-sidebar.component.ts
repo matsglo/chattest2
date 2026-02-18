@@ -10,12 +10,19 @@ export interface SessionSummary {
   standalone: true,
   template: `
     <aside class="w-64 bg-gray-900 text-white flex flex-col h-full">
-      <div class="p-4">
+      <div class="p-4 flex gap-2">
         <button
           (click)="newSession.emit()"
-          class="w-full rounded-lg border border-gray-600 px-3 py-2 text-sm
+          class="flex-1 rounded-lg border border-gray-600 px-3 py-2 text-sm
                  hover:bg-gray-800 transition">
           + New Chat
+        </button>
+        <button
+          (click)="toggleDarkMode()"
+          class="rounded-lg border border-gray-600 px-2.5 py-2 text-sm
+                 hover:bg-gray-800 transition"
+          [title]="isDark ? 'Switch to light mode' : 'Switch to dark mode'">
+          {{ isDark ? '☀️' : '🌙' }}
         </button>
       </div>
       <nav class="flex-1 overflow-y-auto px-2 space-y-1">
@@ -46,4 +53,12 @@ export class SessionSidebarComponent {
   @Output() sessionSelected = new EventEmitter<string>();
   @Output() newSession = new EventEmitter<void>();
   @Output() sessionDeleted = new EventEmitter<string>();
+
+  isDark = document.documentElement.classList.contains('dark');
+
+  toggleDarkMode() {
+    this.isDark = !this.isDark;
+    document.documentElement.classList.toggle('dark', this.isDark);
+    localStorage.setItem('dark-mode', String(this.isDark));
+  }
 }
