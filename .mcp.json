@@ -1,15 +1,19 @@
 {
   "mcpServers": {
     "aspire": {
-      "command": "aspire",
+      "command": "cmd",
       "args": [
+        "/c",
+        "aspire",
         "mcp",
         "start"
       ]
     },
     "playwright": {
-      "command": "npx",
+      "command": "cmd",
       "args": [
+        "/c",
+        "npx",
         "-y",
         "@playwright/mcp@latest"
       ]
