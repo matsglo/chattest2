@@ -174,7 +174,8 @@ public static class ChatEndpoints
 
             // Stream LLM response
             var responseText = new System.Text.StringBuilder();
-            var inThinking = true;
+            var thinkingEnabled = sessions.ThinkingEnabled;
+            var inThinking = thinkingEnabled;
             var tagBuffer = "";
             var functionCallMap = new Dictionary<string, FunctionCallContent>();
 
@@ -187,15 +188,23 @@ public static class ChatEndpoints
                     if (content is FunctionCallContent fc)
                     {
                         functionCallMap[fc.CallId] = fc;
-                        inThinking = true;
+                        if (thinkingEnabled) inThinking = true;
                         continue;
                     }
 
                     if (content is not TextContent textContent ||
                         string.IsNullOrEmpty(textContent.Text))
                     {
-                        if (content is not TextContent)
+                        if (thinkingEnabled && content is not TextContent)
                             inThinking = true;
+                        continue;
+                    }
+
+                    // When thinking is disabled, pass text straight through
+                    if (!thinkingEnabled)
+                    {
+                        await writer.WriteTextDeltaAsync(textContent.Text);
+                        responseText.Append(textContent.Text);
                         continue;
                     }
 

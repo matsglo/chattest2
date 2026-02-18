@@ -7,7 +7,7 @@ public sealed class ChatSession
 {
     public string Id { get; init; } = Guid.NewGuid().ToString("N");
     public string Title { get; set; } = "New Chat";
-    public string SystemPrompt { get; set; } = "You are a helpful assistant. Always wrap your internal reasoning inside <think>...</think> tags before giving your final answer. The content inside <think> tags will be hidden from the user by default.";
+    public string SystemPrompt { get; set; } = "You are a helpful assistant.";
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public List<ChatMessage> Messages { get; } = [];
@@ -15,11 +15,25 @@ public sealed class ChatSession
 
 public sealed class ChatSessionService
 {
+    private readonly bool _thinkingEnabled;
     private readonly ConcurrentDictionary<string, ChatSession> _sessions = new();
+
+    private const string ThinkingInstruction =
+        " Always wrap your internal reasoning inside <think>...</think> tags before giving your final answer." +
+        " The content inside <think> tags will be hidden from the user by default.";
+
+    public ChatSessionService(IConfiguration configuration)
+    {
+        _thinkingEnabled = configuration.GetValue<bool>("AI:Thinking");
+    }
+
+    public bool ThinkingEnabled => _thinkingEnabled;
 
     public ChatSession Create()
     {
         var session = new ChatSession();
+        if (_thinkingEnabled)
+            session.SystemPrompt += ThinkingInstruction;
         session.Messages.Add(new ChatMessage(ChatRole.System, session.SystemPrompt));
         _sessions[session.Id] = session;
         return session;
