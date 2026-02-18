@@ -1,4 +1,4 @@
-import { Component, Output, EventEmitter, Input, ElementRef, ViewChild } from '@angular/core';
+import { Component, Output, EventEmitter, Input, ElementRef, ViewChild, AfterViewInit, OnChanges, SimpleChanges } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 @Component({
@@ -34,12 +34,26 @@ import { FormsModule } from '@angular/forms';
     </div>
   `
 })
-export class ChatInputComponent {
+export class ChatInputComponent implements AfterViewInit, OnChanges {
   @Input() disabled = false;
   @Output() send = new EventEmitter<string>();
   @ViewChild('textarea') private textarea!: ElementRef<HTMLTextAreaElement>;
 
   text = '';
+
+  ngAfterViewInit() {
+    this.focus();
+  }
+
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['disabled'] && !this.disabled) {
+      setTimeout(() => this.focus());
+    }
+  }
+
+  focus() {
+    this.textarea?.nativeElement.focus();
+  }
 
   onKeydown(event: KeyboardEvent) {
     if (event.key === 'Enter' && !event.shiftKey) {
