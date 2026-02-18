@@ -9,10 +9,11 @@ import { MessageBubbleComponent } from './message-bubble.component';
   template: `
     <div #scrollContainer class="h-full overflow-y-auto">
       <div class="max-w-3xl mx-auto px-4 py-6">
-        @for (msg of messages; track msg.id) {
+        @for (msg of messages; track msg.id; let last = $last) {
           <div class="mt-4">
             <app-message-bubble
               [message]="msg"
+              [isStreaming]="last && status === 'streaming'"
               (toolApproval)="toolApproval.emit($event)"
               (toolAlwaysAllow)="toolAlwaysAllow.emit($event)"
             />

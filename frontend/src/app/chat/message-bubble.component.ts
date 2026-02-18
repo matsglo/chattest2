@@ -3,11 +3,22 @@ import { UIMessage } from 'ai';
 import { marked, Renderer, Tokens } from 'marked';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
+let _svgStreaming = false;
+
 const renderer = new Renderer();
 const defaultCodeRenderer = renderer.code.bind(renderer);
 
 renderer.code = function (token: Tokens.Code) {
   if (token.lang === 'svg' || (!token.lang && token.text.trimStart().startsWith('<svg'))) {
+    if (_svgStreaming) {
+      return `
+        <div class="svg-preview my-3 rounded-lg border border-gray-200 overflow-hidden">
+          <div class="flex items-center gap-2 px-3 py-6 justify-center bg-white text-sm text-gray-400">
+            <span class="inline-block w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin"></span>
+            Generating SVG...
+          </div>
+        </div>`;
+    }
     const id = 'svg-' + Math.random().toString(36).slice(2, 9);
     return `
       <div class="svg-preview my-3 rounded-lg border border-gray-200 overflow-hidden">
@@ -154,6 +165,7 @@ marked.setOptions({ breaks: true, gfm: true, renderer });
 })
 export class MessageBubbleComponent implements DoCheck {
   @Input({ required: true }) message!: UIMessage;
+  @Input() isStreaming = false;
   @Output() toolApproval = new EventEmitter<{ id: string; approved: boolean }>();
   @Output() toolAlwaysAllow = new EventEmitter<{ id: string; toolName: string }>();
   renderedHtml: SafeHtml = '';
@@ -162,6 +174,7 @@ export class MessageBubbleComponent implements DoCheck {
 
   private lastText = '';
   private lastReasoning = '';
+  private lastIsStreaming = false;
 
   constructor(private sanitizer: DomSanitizer) {}
 
@@ -176,17 +189,20 @@ export class MessageBubbleComponent implements DoCheck {
       .map(p => p.text)
       .join('');
 
-    const changed = text !== this.lastText || reasoning !== this.lastReasoning;
+    const changed = text !== this.lastText || reasoning !== this.lastReasoning || this.isStreaming !== this.lastIsStreaming;
     if (!changed) return;
 
     this.lastText = text;
     this.lastReasoning = reasoning;
+    this.lastIsStreaming = this.isStreaming;
     this.reasoningText = reasoning;
 
     if (this.message.role === 'user') {
       this.textContent = text;
     } else {
+      _svgStreaming = this.isStreaming;
       const html = marked.parse(text) as string;
+      _svgStreaming = false;
       this.renderedHtml = this.sanitizer.bypassSecurityTrustHtml(html);
     }
   }
