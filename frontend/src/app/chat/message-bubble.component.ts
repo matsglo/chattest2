@@ -1,9 +1,35 @@
 import { Component, Input, Output, EventEmitter, DoCheck } from '@angular/core';
 import { UIMessage } from 'ai';
-import { marked } from 'marked';
+import { marked, Renderer, Tokens } from 'marked';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
-marked.setOptions({ breaks: true, gfm: true });
+const renderer = new Renderer();
+const defaultCodeRenderer = renderer.code.bind(renderer);
+
+renderer.code = function (token: Tokens.Code) {
+  if (token.lang === 'svg' || (!token.lang && token.text.trimStart().startsWith('<svg'))) {
+    const id = 'svg-' + Math.random().toString(36).slice(2, 9);
+    return `
+      <div class="svg-preview my-3 rounded-lg border border-gray-200 overflow-hidden">
+        <div class="flex items-center justify-between px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs text-gray-500">
+          <span>SVG Preview</span>
+          <button onclick="
+            var details = document.getElementById('${id}');
+            details.open = !details.open;
+            this.textContent = details.open ? 'Hide code' : 'View code';
+          " class="hover:text-gray-700 transition-colors cursor-pointer">View code</button>
+        </div>
+        <div class="p-4 flex justify-center bg-white svg-container">${token.text}</div>
+        <details id="${id}" class="border-t border-gray-200">
+          <summary class="hidden"></summary>
+          <pre class="px-3 py-2 overflow-x-auto text-xs text-gray-600 bg-gray-50 m-0"><code>${token.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+        </details>
+      </div>`;
+  }
+  return defaultCodeRenderer(token);
+};
+
+marked.setOptions({ breaks: true, gfm: true, renderer });
 
 @Component({
   selector: 'app-message-bubble',

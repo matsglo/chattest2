@@ -1,2 +1,18 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+
+/* Inline SVG preview in chat messages */
+.svg-container svg {
+  max-width: 100%;
+  height: auto;
+  max-height: 400px;
+}
+
+.prose .svg-preview {
+  /* Override prose defaults that would style SVG container elements */
+  & pre {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--color-gray-50);
+  }
+}
