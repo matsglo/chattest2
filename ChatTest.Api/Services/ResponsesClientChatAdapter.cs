@@ -145,7 +145,8 @@ public sealed class ResponsesClientChatAdapter : IChatClient
     {
         var opts = new CreateResponseOptions
         {
-            Model = _model
+            Model = _model,
+            StreamingEnabled = true
         };
 
         // Convert M.E.AI ChatMessages → ResponseItem input items
