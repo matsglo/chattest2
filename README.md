@@ -115,13 +115,14 @@ The .NET backend doesn't use the JavaScript SDK directly. Instead, `AiStreamWrit
 2. **Install frontend dependencies:**
 
    ```bash
-   cd frontend && npm install
+   cd frontend
+   npm install
    ```
 
 3. **Run via Aspire:**
 
    ```bash
-   dotnet run --project ChatTest.AppHost
+   aspire run
    ```
 
    This starts both the API and the Angular dev server. Open the Aspire dashboard URL printed in the console to see endpoints, traces, and logs.
