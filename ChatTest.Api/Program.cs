@@ -1,3 +1,5 @@
+#pragma warning disable OPENAI001 // OpenAI Responses API is experimental
+
 using ChatTest.Api.Endpoints;
 using ChatTest.Api.Services;
 using Microsoft.Extensions.AI;
@@ -16,15 +18,17 @@ var aiConfig = builder.Configuration.GetSection("AI");
 var modelId = aiConfig["ModelId"] ?? "gpt-4.1";
 var apiKey = aiConfig["ApiKey"] ?? "lm-studio";
 var endpoint = aiConfig["Endpoint"];
+var useResponsesApi = aiConfig.GetValue<bool>("UseResponsesApi");
 
 var clientOptions = new OpenAIClientOptions();
 if (!string.IsNullOrEmpty(endpoint))
     clientOptions.Endpoint = new Uri(endpoint);
 
 var openAiClient = new OpenAIClient(new System.ClientModel.ApiKeyCredential(apiKey), clientOptions);
-IChatClient chatClient = openAiClient
-    .GetChatClient(modelId)
-    .AsIChatClient();
+
+IChatClient chatClient = useResponsesApi
+    ? new ResponsesClientChatAdapter(openAiClient.GetResponsesClient(), modelId)
+    : openAiClient.GetChatClient(modelId).AsIChatClient();
 
 builder.Services.AddSingleton(chatClient);
 
