@@ -18,10 +18,13 @@ var aiConfig = builder.Configuration.GetSection("AI");
 var modelId = aiConfig["ModelId"] ?? "gpt-4.1";
 var apiKey = aiConfig["ApiKey"] ?? "lm-studio";
 var endpoint = aiConfig["Endpoint"];
+var useLmStudio = aiConfig.GetValue<bool>("UseLmStudio");
 var useResponsesApi = aiConfig.GetValue<bool>("UseResponsesApi");
 
 var clientOptions = new OpenAIClientOptions();
-if (!string.IsNullOrEmpty(endpoint))
+if (useLmStudio)
+    clientOptions.Endpoint = new Uri("http://localhost:1234/v1");
+else if (!string.IsNullOrEmpty(endpoint))
     clientOptions.Endpoint = new Uri(endpoint);
 
 var openAiClient = new OpenAIClient(new System.ClientModel.ApiKeyCredential(apiKey), clientOptions);

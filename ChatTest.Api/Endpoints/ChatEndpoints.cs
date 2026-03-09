@@ -47,11 +47,14 @@ public static class ChatEndpoints
         group.MapDelete("/sessions/{id}", (string id, ChatSessionService svc) =>
             svc.Delete(id) ? Results.NoContent() : Results.NotFound());
 
-        group.MapGet("/sessions/{id}/messages", (string id, ChatSessionService svc) =>
+        group.MapGet("/sessions/{id}/messages", (string id, ChatSessionService svc, IConfiguration configuration) =>
         {
             var session = svc.Get(id);
             if (session is null)
                 return Results.NotFound();
+
+            var isResponsesApi = configuration.GetValue<bool>("AI:UseResponsesApi");
+            var currentApiMode = isResponsesApi ? "/v1/responses" : "/v1/chat/completions";
 
             // Build a lookup of tool results from Tool messages so we can
             // merge them into the preceding assistant message's tool parts.
@@ -153,7 +156,8 @@ public static class ChatEndpoints
                             outputTokens = m.outputTokens,
                             cachedTokens = m.cachedTokens,
                             totalTokens = m.totalTokens
-                        }
+                        },
+                        apiMode = currentApiMode
                     }
                     : null;
 
@@ -175,8 +179,11 @@ public static class ChatEndpoints
             ChatSessionService sessions,
             IChatClient chatClient,
             McpToolService mcpService,
+            IConfiguration configuration,
             HttpContext httpContext) =>
         {
+            var useResponsesApi = configuration.GetValue<bool>("AI:UseResponsesApi");
+            var apiMode = useResponsesApi ? "/v1/responses" : "/v1/chat/completions";
             var session = sessions.Get(id);
             if (session is null)
                 return Results.NotFound();
@@ -458,7 +465,8 @@ public static class ChatEndpoints
                         outputTokens = tokenUsage.OutputTokens,
                         cachedTokens = tokenUsage.CachedTokens,
                         totalTokens = tokenUsage.TotalTokens
-                    }
+                    },
+                    apiMode
                 });
             }
 

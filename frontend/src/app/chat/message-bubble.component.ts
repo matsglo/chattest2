@@ -166,6 +166,9 @@ marked.setOptions({ breaks: true, gfm: true, renderer });
           @if (usage.cachedTokens) {
             ⚡{{ usage.cachedTokens }} cached
           }
+          @if (apiMode) {
+            · {{ apiMode }}
+          }
         </div>
       }
     </div>
@@ -181,6 +184,7 @@ export class MessageBubbleComponent implements DoCheck {
   reasoningText = '';
   showUsage = localStorage.getItem('show-token-usage') === 'true';
   usage: { inputTokens: number; outputTokens: number; cachedTokens: number; totalTokens: number } | null = null;
+  apiMode: string | null = null;
 
   private lastText = '';
   private lastReasoning = '';
@@ -201,6 +205,7 @@ export class MessageBubbleComponent implements DoCheck {
 
     this.showUsage = localStorage.getItem('show-token-usage') === 'true';
     this.usage = (this.message as any).metadata?.usage ?? null;
+    this.apiMode = (this.message as any).metadata?.apiMode ?? null;
 
     const changed = text !== this.lastText || reasoning !== this.lastReasoning || this.isStreaming !== this.lastIsStreaming;
     if (!changed) return;
